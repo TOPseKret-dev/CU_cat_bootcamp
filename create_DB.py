@@ -3,7 +3,7 @@ import asyncio
 
 
 async def create_db():
-    async with aiosqlite.connect("database.db") as db:
+    async with aiosqlite.connect("project/database.db") as db:
         await db.execute("""
         CREATE TABLE IF NOT EXISTS admins (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

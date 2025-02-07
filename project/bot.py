@@ -2,12 +2,12 @@ import asyncio
 from db_controller import *
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
-from aiogram.types import Message, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import Message, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 import time
 import requests
 
 # Ключи и токены
-from keys import bot_token, folder_id, api_key
+from keys import bot_token, folder_id, api_key, domen
 
 
 def get_answer(user_prompt):
@@ -47,8 +47,10 @@ def get_answer(user_prompt):
 
 async def command_start(message: Message) -> None:
     user_id = message.from_user.id
+    web_app_url = f"http://{domen}/?user_id={user_id}"
     if await is_admin(user_id):
-        kb_list = [[KeyboardButton(text="Настроить ассистента")]]
+        kb_list = [[KeyboardButton(text="Настроить ассистента"),
+                    KeyboardButton(text="Добавить событие", web_app=WebAppInfo(url=web_app_url))]]
         await message.answer("Привет, я твой бот-ассистент, помогу твоим студентам в обучении!",
                              reply_markup=ReplyKeyboardMarkup(keyboard=kb_list,
                                                               resize_keyboard=True,
@@ -111,6 +113,26 @@ async def get_all_admins(message: Message):
     await message.reply(f"Список администраторов:\n{admins_str}")
 
 
+async def reminder_loop(bot: Bot):
+    while True:
+        now = int(time.time())
+        async with aiosqlite.connect("database.db") as conn:
+            async with conn.execute(
+                "SELECT id, user_id, event_text FROM events WHERE reminder_time <= ? AND notified = 0",
+                (now,)
+            ) as cursor:
+                events = await cursor.fetchall()
+            for event in events:
+                event_id, user_id, event_text = event
+                try:
+                    await bot.send_message(user_id, f"Напоминание: {event_text}")
+                except Exception as e:
+                    print(f"Ошибка при отправке напоминания пользователю {user_id}: {e}")
+                await conn.execute("UPDATE events SET notified = 1 WHERE id = ?", (event_id,))
+            await conn.commit()
+        await asyncio.sleep(60)
+
+
 async def main() -> None:
     dp = Dispatcher()
     dp.message.register(command_start, Command("start"))
@@ -119,6 +141,7 @@ async def main() -> None:
     dp.message.register(get_all_admins, Command("getalladmins"))
 
     bot = Bot(token=bot_token)
+    # await asyncio.create_task(reminder_loop(bot))
     await dp.start_polling(bot)
 
 
