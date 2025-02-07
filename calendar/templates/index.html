@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Добавить событие{% endblock %}
+
+{% block content %}
+  <h1 class="mb-4">Добавить событие</h1>
+  <form method="POST" action="{{ url_for('index', user_id=user_id) }}">
+    <div class="mb-3">
+      <label for="user_id" class="form-label">Telegram User ID</label>
+      <input type="text" class="form-control" id="user_id" name="user_id" value="{{ user_id or '' }}" placeholder="Введите ваш Telegram ID" required>
+    </div>
+    <div class="mb-3">
+      <label for="event_text" class="form-label">Описание события</label>
+      <input type="text" class="form-control" id="event_text" name="event_text" placeholder="Например, встреча с клиентом" required>
+    </div>
+    <div class="mb-3">
+      <label for="event_time" class="form-label">Время события</label>
+      <input type="datetime-local" class="form-control" id="event_time" name="event_time" required>
+    </div>
+    <div class="mb-3">
+      <label for="reminder_time" class="form-label">Время напоминания</label>
+      <input type="datetime-local" class="form-control" id="reminder_time" name="reminder_time" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Сохранить событие</button>
+  </form>
+  <hr>
+  <!-- Кнопка для возврата в Telegram -->
+  <a href="https://t.me/CU_Kat_bot" class="btn btn-secondary">Вернуться в Telegram</a>
+{% endblock %}
