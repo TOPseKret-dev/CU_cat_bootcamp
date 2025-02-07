@@ -1,4 +1,3 @@
-# app.py
 from flask import Flask, render_template, request, redirect, url_for, flash
 import sqlite3
 from datetime import datetime
@@ -9,7 +8,7 @@ app.secret_key = "your_secret_key"  # Задайте свой секретный
 DATABASE = "database.db"
 
 # Инициализируем БД (если ещё не создана)
-init_db()
+# init_db()
 
 
 @app.route("/", methods=["GET", "POST"])

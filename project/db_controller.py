@@ -15,13 +15,24 @@ async def init_db():
                 notified INTEGER DEFAULT 0
             )
         ''')
-        await conn.execute("""
+        await conn.execute('''
                 CREATE TABLE IF NOT EXISTS admins (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER UNIQUE NOT NULL,
                     username TEXT
                 );
-                """)
+                ''')
+        await conn.execute('''
+                    CREATE TABLE IF NOT EXISTS global_settings (
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        system_prompt TEXT NOT NULL DEFAULT ''
+                    )
+                ''')
+        # Инициализируем дефолтную запись
+        await conn.execute('''
+                    INSERT OR IGNORE INTO global_settings (id, system_prompt) 
+                    VALUES (1, '')
+                ''')
         await conn.commit()
 
 
@@ -77,3 +88,21 @@ async def get_admins() -> str:
         formatted_lines.append(f"ID: {user_id} | Username: {name}")
 
     return "\n".join(formatted_lines)
+
+
+async def update_system_prompt(prompt_text: str):
+    async with aiosqlite.connect(DATABASE) as conn:
+        await conn.execute('''
+            INSERT OR REPLACE INTO global_settings (id, system_prompt)
+            VALUES (1, ?)
+        ''', (prompt_text,))
+        await conn.commit()
+
+
+async def get_system_prompt() -> str:
+    async with aiosqlite.connect(DATABASE) as conn:
+        async with conn.execute('''
+            SELECT system_prompt FROM global_settings WHERE id = 1
+        ''') as cursor:
+            result = await cursor.fetchone()
+            return result[0] if result else ""
