@@ -85,7 +85,7 @@ async def command_start(message: Message) -> None:
     Обработчик команды /start.
     """
     user_id = message.from_user.id
-    web_app_url = f"https://{domen}/?user_id={user_id}"
+    web_app_url = f"{domen}/?user_id={user_id}"
     if await is_admin(user_id):
         kb_list = [[KeyboardButton(text="Настроить ассистента"),
                     KeyboardButton(text="Добавить событие", web_app=WebAppInfo(url=web_app_url))]]
