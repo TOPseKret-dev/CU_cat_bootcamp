@@ -1,11 +1,13 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
 import sqlite3
 from datetime import datetime
+from flask_cloudflared import run_with_cloudflared
 from db_controller import init_db  # Импортируем инициализацию БД
 
 app = Flask(__name__)
 app.secret_key = "your_secret_key"  # Задайте свой секретный ключ
 DATABASE = "database.db"
+run_with_cloudflared(app)
 
 # Инициализируем БД (если ещё не создана)
 # init_db()
@@ -48,4 +50,4 @@ def index():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)

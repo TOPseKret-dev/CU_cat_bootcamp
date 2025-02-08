@@ -16,6 +16,10 @@ from keys import bot_token, folder_id, api_key, domen
 
 async def get_answer(user_prompt, id):
     admin = await is_admin(id)
+    if admin:
+        admin = "преподаватель"
+    else:
+        admin = "студент"
     system_prompt = await get_system_prompt()  # Ждём завершения асинхронной функции
     print(system_prompt)
     gpt_model = 'yandexgpt-lite'
@@ -24,13 +28,18 @@ async def get_answer(user_prompt, id):
         'completionOptions': {'stream': False, 'temperature': 0.3, 'maxTokens': 2000},
         'messages': [
             {'role': 'system', 'text':
-                '''Представьте, что вы ИИ-ассистент, созданный для помощи преподавателям в снижении нагрузки. Ваша 
+                f'''Представьте, что вы ИИ-ассистент, созданный для помощи преподавателям в снижении нагрузки. Ваша 
                 задача — автоматизировать рутинные задачи, такие как проверка домашних заданий, составление тестов, 
                 ответы на вопросы студентов и создание учебных материалов. Начните с приветствия и предложения 
                 выбрать курсы, для которых будет использоваться ассистент. Преподаватель должен указать названия 
                 курсов через запятую. Затем попросите его определить типы задач, которые он хотел бы делегировать 
                 вам, выбрав из следующих вариантов: проверка домашних заданий, составление тестов, ответы на вопросы 
                 студентов, создание учебных материалов.
+                
+                Если ты общаешься с преподователем, то ты должен ему помочь настроить себя, если со студентом, 
+                то помочь решить его проблему.
+                
+                Твой собеседник сейчас {admin}
                 
 Так же уточни, что для твоей настройки нужно нажать на кнопку "настроить ассистента"
 
@@ -41,11 +50,7 @@ async def get_answer(user_prompt, id):
 Далее настройка параметры для составления тестов: количество вопросов, время на прохождение теста и сложность 
 вопросов (легкие, средние, сложные). Если преподаватель выбрал задачу "ответы на вопросы студентов", уточните, 
 какие темы и форматы вопросов он ожидает.
-Дальнейший текст был отправлен преподавателем, следуй его инструкциям: '''
-                + system_prompt + "преподу ты должен помогать в настройке самого себя и распределению его задач, "
-                                  "а студентам должен помогать по темам, описанным преподом. Если далее написано "
-                                  "True, то перед тобой препод, иначе студент и ты должен общаться соответствующе"
-             + str(admin)},
+Дальнейший текст был отправлен преподавателем, следуй его инструкциям: {system_prompt}'''},
             {'role': 'user', 'text': user_prompt},
         ]
     }
@@ -62,6 +67,7 @@ async def get_answer(user_prompt, id):
 
     while True:
         response = requests.get(url, headers=headers)
+        print(response.json())
         done = response.json()["done"]
         if done:
             break
@@ -249,15 +255,18 @@ async def main() -> None:
     dp = Dispatcher()
     dp.message.register(command_start, Command("start"))
     dp.message.register(add_admin_command, Command("addadmin"))
-    dp.message.register(remove_admin, Command("removeadmin"))
+    dp.message.register(remove_admin_command, Command("removeadmin"))
     dp.message.register(get_all_admins, Command("getalladmins"))
     dp.message.register(handle_configure_assistant, F.text == "Настроить ассистента")
     dp.message.register(save_assistant_settings, Form.waiting_for_settings)
     dp.message.register(handle_other_messages)
 
     bot = Bot(token=bot_token)
-    # await asyncio.create_task(reminder_loop(bot))
-    await dp.start_polling(bot)
+
+    # Запуск напоминаний в фоновом режиме
+    asyncio.create_task(reminder_loop(bot))
+
+    await dp.start_polling(bot)  # Поллинг остается основным процессом
 
 
 if __name__ == '__main__':
