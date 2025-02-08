@@ -11,36 +11,15 @@ from keys import bot_token, folder_id, api_key, domen
 
 
 class Form(StatesGroup):
-    """
-    Класс состояний для взаимодействия с пользователем.
-    """
     waiting_for_settings = State()
 
 
 async def get_answer(user_prompt: str, user_id: int, context_messages: list = None) -> str:
-    """
-    Отправка запроса к Yandex GPT API и получение ответа.
-
-    :param user_prompt: Введенный пользователем запрос.
-    :param user_id: Идентификатор пользователя.
-    :param context_messages: История сообщений (опционально).
-    :return: Ответ от модели ИИ.
-    """
     admin = await is_admin(user_id)
     admin_role = "преподаватель" if admin else "студент"
     system_prompt = await get_system_prompt()
 
-    messages = [{
-        'role': 'system',
-        'text': (
-            f"Вы - ассистент преподавателей. "
-            f"Ваш собеседник - {admin_role}. "
-            f"Текущие настройки: {system_prompt}"
-        )
-    }]
-
-    if context_messages:
-        messages.extend(context_messages)
+    messages = await get_user_context(user_id)
     messages.append({'role': 'user', 'text': user_prompt})
 
     body = {
@@ -60,75 +39,47 @@ async def get_answer(user_prompt: str, user_id: int, context_messages: list = No
             break
         await asyncio.sleep(1)
 
-    return response.json()['response']['alternatives'][0]['message']['text']
+    answer = response.json()['response']['alternatives'][0]['message']['text']
+    await save_message(user_id, 'user', user_prompt)
+    await save_message(user_id, 'assistant', answer)
+    return answer
 
 
-async def handle_configure_assistant(message: Message, state: FSMContext):
-    """
-    Запросить у пользователя настройки ассистента.
-    """
-    await message.answer("Введите настройки ассистента:")
-    await state.set_state(Form.waiting_for_settings)
+async def handle_message(message: Message):
+    user_id = message.from_user.id
+    response = await get_answer(message.text, user_id)
+    await message.answer(response)
 
 
-async def save_assistant_settings(message: Message, state: FSMContext):
-    """
-    Сохранение пользовательских настроек ассистента.
-    """
-    await update_system_prompt(message.text)
-    await message.answer("Настройки успешно сохранены!")
-    await state.clear()
-
-
-async def command_start(message: Message) -> None:
-    """
-    Обработчик команды /start.
-    """
+async def command_start(message: Message, bot: Bot) -> None:
     user_id = message.from_user.id
     web_app_url = f"{domen}/?user_id={user_id}"
+    sticker_pack_url = "https://t.me/addstickers/CUCat9"
+    sticker_id = "CAACAgIAAxkBAAENveZnp1O-zUx4LJ6ziZeqXGXLxoHBhAACV2AAAuAgOElpliPYfQViXDYE"
+
     if await is_admin(user_id):
         kb_list = [[KeyboardButton(text="Настроить ассистента"),
                     KeyboardButton(text="Добавить событие", web_app=WebAppInfo(url=web_app_url))]]
-        await message.answer("Привет! Я бот-ассистент для преподавателей.",
-                             reply_markup=ReplyKeyboardMarkup(keyboard=kb_list, resize_keyboard=True))
+        await message.answer(
+            "Привет! Я бот-ассистент для преподавателей.\n\n"
+            f"Также у нас есть стикерпак, посмотри: {sticker_pack_url}",
+            reply_markup=ReplyKeyboardMarkup(keyboard=kb_list, resize_keyboard=True)
+        )
     else:
-        await message.answer("Привет! Чем могу помочь?")
-
-
-async def reminder_loop(bot: Bot):
-    """
-    Фоновый процесс для отправки напоминаний пользователям.
-    """
-    while True:
-        now = int(time.time())
-        async with aiosqlite.connect("database.db") as conn:
-            async with conn.execute(
-                    "SELECT id, user_id, event_text FROM events WHERE reminder_time <= ? AND notified = 0",
-                    (now,)) as cursor:
-                events = await cursor.fetchall()
-            for event in events:
-                event_id, user_id, event_text = event
-                try:
-                    await bot.send_message(user_id, f"Напоминание: {event_text}")
-                except Exception as e:
-                    print(f"Ошибка при отправке напоминания: {e}")
-                await conn.execute("UPDATE events SET notified = 1 WHERE id = ?", (event_id,))
-            await conn.commit()
-        await asyncio.sleep(60)
+        await message.answer(
+            "Привет! Чем могу помочь?\n\n"
+            f"Также у нас есть стикерпак, посмотри: {sticker_pack_url}"
+        )
+    await bot.send_sticker(chat_id=message.chat.id, sticker=sticker_id)
 
 
 async def main() -> None:
-    """
-    Запуск бота и процессов обработки сообщений.
-    """
     await init_db()
     dp = Dispatcher()
     dp.message.register(command_start, Command("start"))
-    dp.message.register(handle_configure_assistant, F.text == "Настроить ассистента")
-    dp.message.register(save_assistant_settings, Form.waiting_for_settings)
+    dp.message.register(handle_message)
 
     bot = Bot(token=bot_token)
-    asyncio.create_task(reminder_loop(bot))
     await dp.start_polling(bot)
 
 

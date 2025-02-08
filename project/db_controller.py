@@ -33,6 +33,15 @@ async def init_db():
                     INSERT OR IGNORE INTO global_settings (id, system_prompt) 
                     VALUES (1, '')
                 ''')
+        await conn.execute('''
+                    CREATE TABLE IF NOT EXISTS messages (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        role TEXT NOT NULL,
+                        text TEXT NOT NULL,
+                        timestamp INTEGER DEFAULT (strftime('%s', 'now'))
+                    )
+                ''')
         await conn.commit()
 
 
@@ -67,6 +76,28 @@ async def add_admin(user_id: int, username: str = None):
         )
         await db.commit()
 
+
+async def get_user_context(user_id: int) -> list:
+    """Получаем историю сообщений пользователя"""
+    async with aiosqlite.connect(DATABASE) as conn:
+        async with conn.execute('''
+            SELECT role, text 
+            FROM messages 
+            WHERE user_id = ?
+            ORDER BY timestamp ASC
+        ''', (user_id,)) as cursor:
+            rows = await cursor.fetchall()
+            return [{'role': row[0], 'text': row[1]} for row in rows]
+
+
+async def save_message(user_id: int, role: str, text: str):
+    """Сохраняем сообщение в историю"""
+    async with aiosqlite.connect(DATABASE) as conn:
+        await conn.execute('''
+            INSERT INTO messages (user_id, role, text)
+            VALUES (?, ?, ?)
+        ''', (user_id, role, text))
+        await conn.commit()
 
 async def remove_admin(user_id: int):
     async with aiosqlite.connect("database.db") as db:

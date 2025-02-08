@@ -10,7 +10,7 @@ DATABASE = "database.db"
 run_with_cloudflared(app)
 
 # Инициализируем БД (если ещё не создана)
-# init_db()
+init_db()
 
 
 @app.route("/", methods=["GET", "POST"])
